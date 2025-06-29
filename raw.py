@@ -1,21 +1,20 @@
 #!/usr/bin/python3
-#
-#
-#Read raw hex frames/data from RS41
-#Raw hex files from RS41-Tracker rs41mod radiosonde_auto_rx goes.
-#Subframe files from radiosonde_auto_rx is ok
-#Some things come from here.
-#https://github.com/rs1729/RS
-#https://github.com/einergehtnochrein/ra-firmware/blob/master/src/rs41/rs41private.h many variables
-#https://github.com/bazjo/RS41_Decoding
-#https://github.com/projecthorus/radiosonde_auto_rx
-#https://github.com/dl9rdz/rdz_ttgo_sonde
-#
-#
-#Meterological block is not yet fully functional.
-#A lot of things are definitely not right, but a lot of things are ok. ;)
-#
-#
+"""
+    Read raw hex frames/data from RS41
+
+    Raw hex files from RS41-Tracker rs41mod radiosonde_auto_rx goes.
+    Subframe files from radiosonde_auto_rx is ok
+
+    Some things come from here.
+    https://github.com/rs1729/RS
+    https://github.com/einergehtnochrein/ra-firmware/blob/master/src/rs41/rs41private.h many variables
+    https://github.com/bazjo/RS41_Decoding
+    https://github.com/projecthorus/radiosonde_auto_rx
+    https://github.com/dl9rdz/rdz_ttgo_sonde
+
+    Meterological block is not yet fully functional.
+    A lot of things are definitely not right, but a lot of things are ok. ;)
+"""
 
 import json
 import datetime
@@ -26,41 +25,70 @@ import glob
 import os
 
 header = '8635f44093df1a60'
-auxtyp={0x01:'Ozonesonde',0x05:'OIF411',0x08:'CFH',0x10:'FPH',0x19:'COBALD',0x28:'SLW',0x38:'POPS',0x39:'OPC',0x3A:'WVS',0x3C:'PCFH',0x3D:'FLASH-B',0x3E:'TRAPS',0x3F:'SKYDEW',0x41:'CICANUM',0x45:'POPS',}
-frametyp={118:'empty',121:'status',122:'meas',123:'gpspos',124:'gpsinfo',125:'gpsraw',126:'xdata',127:'measshort',128:'crypt',130:'gpsposn',131:'new0',150:'new1'}
+auxtyp = {
+    0x01:'Ozonesonde',
+    0x05:'OIF411',
+    0x08:'CFH',
+    0x10:'FPH',
+    0x19:'COBALD',
+    0x28:'SLW',
+    0x38:'POPS',
+    0x39:'OPC',
+    0x3A:'WVS',
+    0x3C:'PCFH',
+    0x3D:'FLASH-B',
+    0x3E:'TRAPS',
+    0x3F:'SKYDEW',
+    0x41:'CICANUM',
+    0x45:'POPS'
+}
+frametyp = {
+    0x76:'empty',
+    0x79:'status',
+    0x7A:'meas',
+    0x7B:'gpspos',
+    0x7C:'gpsinfo',
+    0x7D:'gpsraw',
+    0x7E:'xdata',
+    0x7F:'measshort',
+    0x80:'crypt',
+    0x82:'gpsposn',
+    0x83:'gpssat',
+    0x96:'auth'
+}
 crc16_ccitt_table = [
-0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50A5, 0x60C6, 0x70E7,
-0x8108, 0x9129, 0xA14A, 0xB16B, 0xC18C, 0xD1AD, 0xE1CE, 0xF1EF,
-0x1231, 0x0210, 0x3273, 0x2252, 0x52B5, 0x4294, 0x72F7, 0x62D6,
-0x9339, 0x8318, 0xB37B, 0xA35A, 0xD3BD, 0xC39C, 0xF3FF, 0xE3DE,
-0x2462, 0x3443, 0x0420, 0x1401, 0x64E6, 0x74C7, 0x44A4, 0x5485,
-0xA56A, 0xB54B, 0x8528, 0x9509, 0xE5EE, 0xF5CF, 0xC5AC, 0xD58D,
-0x3653, 0x2672, 0x1611, 0x0630, 0x76D7, 0x66F6, 0x5695, 0x46B4,
-0xB75B, 0xA77A, 0x9719, 0x8738, 0xF7DF, 0xE7FE, 0xD79D, 0xC7BC,
-0x48C4, 0x58E5, 0x6886, 0x78A7, 0x0840, 0x1861, 0x2802, 0x3823,
-0xC9CC, 0xD9ED, 0xE98E, 0xF9AF, 0x8948, 0x9969, 0xA90A, 0xB92B,
-0x5AF5, 0x4AD4, 0x7AB7, 0x6A96, 0x1A71, 0x0A50, 0x3A33, 0x2A12,
-0xDBFD, 0xCBDC, 0xFBBF, 0xEB9E, 0x9B79, 0x8B58, 0xBB3B, 0xAB1A,
-0x6CA6, 0x7C87, 0x4CE4, 0x5CC5, 0x2C22, 0x3C03, 0x0C60, 0x1C41,
-0xEDAE, 0xFD8F, 0xCDEC, 0xDDCD, 0xAD2A, 0xBD0B, 0x8D68, 0x9D49,
-0x7E97, 0x6EB6, 0x5ED5, 0x4EF4, 0x3E13, 0x2E32, 0x1E51, 0x0E70,
-0xFF9F, 0xEFBE, 0xDFDD, 0xCFFC, 0xBF1B, 0xAF3A, 0x9F59, 0x8F78,
-0x9188, 0x81A9, 0xB1CA, 0xA1EB, 0xD10C, 0xC12D, 0xF14E, 0xE16F,
-0x1080, 0x00A1, 0x30C2, 0x20E3, 0x5004, 0x4025, 0x7046, 0x6067,
-0x83B9, 0x9398, 0xA3FB, 0xB3DA, 0xC33D, 0xD31C, 0xE37F, 0xF35E,
-0x02B1, 0x1290, 0x22F3, 0x32D2, 0x4235, 0x5214, 0x6277, 0x7256,
-0xB5EA, 0xA5CB, 0x95A8, 0x8589, 0xF56E, 0xE54F, 0xD52C, 0xC50D,
-0x34E2, 0x24C3, 0x14A0, 0x0481, 0x7466, 0x6447, 0x5424, 0x4405,
-0xA7DB, 0xB7FA, 0x8799, 0x97B8, 0xE75F, 0xF77E, 0xC71D, 0xD73C,
-0x26D3, 0x36F2, 0x0691, 0x16B0, 0x6657, 0x7676, 0x4615, 0x5634,
-0xD94C, 0xC96D, 0xF90E, 0xE92F, 0x99C8, 0x89E9, 0xB98A, 0xA9AB,
-0x5844, 0x4865, 0x7806, 0x6827, 0x18C0, 0x08E1, 0x3882, 0x28A3,
-0xCB7D, 0xDB5C, 0xEB3F, 0xFB1E, 0x8BF9, 0x9BD8, 0xABBB, 0xBB9A,
-0x4A75, 0x5A54, 0x6A37, 0x7A16, 0x0AF1, 0x1AD0, 0x2AB3, 0x3A92,
-0xFD2E, 0xED0F, 0xDD6C, 0xCD4D, 0xBDAA, 0xAD8B, 0x9DE8, 0x8DC9,
-0x7C26, 0x6C07, 0x5C64, 0x4C45, 0x3CA2, 0x2C83, 0x1CE0, 0x0CC1,
-0xEF1F, 0xFF3E, 0xCF5D, 0xDF7C, 0xAF9B, 0xBFBA, 0x8FD9, 0x9FF8,
-0x6E17, 0x7E36, 0x4E55, 0x5E74, 0x2E93, 0x3EB2, 0x0ED1, 0x1EF0
+    0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50A5, 0x60C6, 0x70E7,
+    0x8108, 0x9129, 0xA14A, 0xB16B, 0xC18C, 0xD1AD, 0xE1CE, 0xF1EF,
+    0x1231, 0x0210, 0x3273, 0x2252, 0x52B5, 0x4294, 0x72F7, 0x62D6,
+    0x9339, 0x8318, 0xB37B, 0xA35A, 0xD3BD, 0xC39C, 0xF3FF, 0xE3DE,
+    0x2462, 0x3443, 0x0420, 0x1401, 0x64E6, 0x74C7, 0x44A4, 0x5485,
+    0xA56A, 0xB54B, 0x8528, 0x9509, 0xE5EE, 0xF5CF, 0xC5AC, 0xD58D,
+    0x3653, 0x2672, 0x1611, 0x0630, 0x76D7, 0x66F6, 0x5695, 0x46B4,
+    0xB75B, 0xA77A, 0x9719, 0x8738, 0xF7DF, 0xE7FE, 0xD79D, 0xC7BC,
+    0x48C4, 0x58E5, 0x6886, 0x78A7, 0x0840, 0x1861, 0x2802, 0x3823,
+    0xC9CC, 0xD9ED, 0xE98E, 0xF9AF, 0x8948, 0x9969, 0xA90A, 0xB92B,
+    0x5AF5, 0x4AD4, 0x7AB7, 0x6A96, 0x1A71, 0x0A50, 0x3A33, 0x2A12,
+    0xDBFD, 0xCBDC, 0xFBBF, 0xEB9E, 0x9B79, 0x8B58, 0xBB3B, 0xAB1A,
+    0x6CA6, 0x7C87, 0x4CE4, 0x5CC5, 0x2C22, 0x3C03, 0x0C60, 0x1C41,
+    0xEDAE, 0xFD8F, 0xCDEC, 0xDDCD, 0xAD2A, 0xBD0B, 0x8D68, 0x9D49,
+    0x7E97, 0x6EB6, 0x5ED5, 0x4EF4, 0x3E13, 0x2E32, 0x1E51, 0x0E70,
+    0xFF9F, 0xEFBE, 0xDFDD, 0xCFFC, 0xBF1B, 0xAF3A, 0x9F59, 0x8F78,
+    0x9188, 0x81A9, 0xB1CA, 0xA1EB, 0xD10C, 0xC12D, 0xF14E, 0xE16F,
+    0x1080, 0x00A1, 0x30C2, 0x20E3, 0x5004, 0x4025, 0x7046, 0x6067,
+    0x83B9, 0x9398, 0xA3FB, 0xB3DA, 0xC33D, 0xD31C, 0xE37F, 0xF35E,
+    0x02B1, 0x1290, 0x22F3, 0x32D2, 0x4235, 0x5214, 0x6277, 0x7256,
+    0xB5EA, 0xA5CB, 0x95A8, 0x8589, 0xF56E, 0xE54F, 0xD52C, 0xC50D,
+    0x34E2, 0x24C3, 0x14A0, 0x0481, 0x7466, 0x6447, 0x5424, 0x4405,
+    0xA7DB, 0xB7FA, 0x8799, 0x97B8, 0xE75F, 0xF77E, 0xC71D, 0xD73C,
+    0x26D3, 0x36F2, 0x0691, 0x16B0, 0x6657, 0x7676, 0x4615, 0x5634,
+    0xD94C, 0xC96D, 0xF90E, 0xE92F, 0x99C8, 0x89E9, 0xB98A, 0xA9AB,
+    0x5844, 0x4865, 0x7806, 0x6827, 0x18C0, 0x08E1, 0x3882, 0x28A3,
+    0xCB7D, 0xDB5C, 0xEB3F, 0xFB1E, 0x8BF9, 0x9BD8, 0xABBB, 0xBB9A,
+    0x4A75, 0x5A54, 0x6A37, 0x7A16, 0x0AF1, 0x1AD0, 0x2AB3, 0x3A92,
+    0xFD2E, 0xED0F, 0xDD6C, 0xCD4D, 0xBDAA, 0xAD8B, 0x9DE8, 0x8DC9,
+    0x7C26, 0x6C07, 0x5C64, 0x4C45, 0x3CA2, 0x2C83, 0x1CE0, 0x0CC1,
+    0xEF1F, 0xFF3E, 0xCF5D, 0xDF7C, 0xAF9B, 0xBFBA, 0x8FD9, 0x9FF8,
+    0x6E17, 0x7E36, 0x4E55, 0x5E74, 0x2E93, 0x3EB2, 0x0ED1, 0x1EF0
 ]
 
 def geo(x,y,z):
@@ -178,13 +206,13 @@ def subframe32(s):
 def subframe(d,only_subframe_file = False):
     strf = '\x00'
     a = {}
-    if only_subframe_file:
-        f = open(d, "rb")
-        b = f.read()
-        x = bytearray(b)
-    else:
-        x = d
     try:
+        if only_subframe_file:
+            f = open(d, "rb")
+            b = f.read()
+            x = bytearray(b)
+        else:
+            x = d
         lbb = len(x)
         crcv = x[0x000]|x[0x001]<<8
         crcs = crc_ccitt_16(x[0x002:lbb-16])
@@ -310,22 +338,38 @@ def subframe(d,only_subframe_file = False):
         a['remainingBatteryCapacity'] = x[0x32A]|x[0x32B]<<8
         a['numUbxDiscarded'] = x[0x32C]
         a['numUbxStall'] = x[0x32D]
+        if only_subframe_file:
+            #search for softwarerest in subframe #testing
+            #if 'numSoftwareResets' in a and a['numSoftwareResets']>0:
+                #print(f"SoftwareResets_{a['serial']}: {a['numSoftwareResets']}")
+            return f"\033[0;96msubframe:{json.dumps(a)}\033[0m\n"
     except Exception as e:
-        pass
         print(f"error_subframe:{e}")
-    if only_subframe_file:
-        #search for softwarerest in subframe #testing
-        #if 'numSoftwareResets' in a and a['numSoftwareResets']>0:
-            #print(f"SoftwareResets_{a['serial']}: {a['numSoftwareResets']}")
-        return f"\033[0;96msubframe:{json.dumps(a)}\033[0m\n"
-    else:
-        return a
+    return a
+
+def auth(i,block_crc):
+    """test attempt"""
+    auth = {}
+    try:
+        lbb=len(i)
+        if lbb == 12: #sometimes dontnow
+            auth['auth_crc'] = block_crc
+            auth['reserved000'] = i[0x000]
+            auth['reserved001'] = i[0x001]
+            val = 0x002
+            rangeval=lbb-val-2 #-2 crc ignore
+            strv =''
+            for z in range(rangeval):
+               strv += f"{i[val+z]:02X}"
+            auth['auth_value'] = strv
+    except Exception as e:
+        print(f"error_auth:{e} dict:{auth} len:{lbb}")
+    return auth
 
 def status(x,block_crc):
     s = {}
     try:
         lbb = len(x)
-        #if lbb != 42:print(f"status: len:{lbb}")
         if lbb == 42: #sometimes 23
             s['status_crc'] = block_crc
             if x[0x000]|x[0x001]<<8|x[0x002]<<16|x[0x003]<<24 == 0: return s #empty
@@ -353,7 +397,6 @@ def status(x,block_crc):
             sff = f"0x{s['thisCalibIndex']:02X}:"
             s['rs41_subfrm'] = sff + hcf
     except Exception as e:
-        pass
         print(f"error_status:{e} dict:{s} len:{lbb}")
     return s
 
@@ -361,7 +404,6 @@ def meas(m,block_crc):
     s = {}
     try:
         lbb = len(m)
-        #if lbb != 44:print(f"meas: len:{lbb}")
         if lbb == 44: #sometimes 23
             s['meas_crc'] = block_crc
             if m[0x000]|m[0x001]<<8|m[0x002]<<16|m[0x003]<<24 == 0: return s #empty
@@ -376,7 +418,6 @@ def meas(m,block_crc):
             s['TemperaturePressureSensor']=(m[0x026]|m[0x027]<<8)/100
             s['reserved028'] = m[0x028]|m[0x029]<<8
     except Exception as e:
-        pass
         print(f"error_meas:{e} dict:{s} len:{lbb}")
     return s
 
@@ -384,7 +425,6 @@ def measshort(m,block_crc):
     s = {}
     try:
         lbb=len(m)
-        #if lbb != 29:print(f"measshort: len:{lbb}")
         if lbb == 29: #sometimes 23
             s['measshort_crc'] = block_crc
             if m[0x000]|m[0x001]<<8|m[0x002]<<16|m[0x003]<<24 == 0: return s
@@ -396,7 +436,6 @@ def measshort(m,block_crc):
                 s['ref1'][x] = m[0x003+(9*x)]|m[0x004+(9*x)]<<8|m[0x005+(9*x)]<<16
                 s['ref2'][x] = m[0x006+(9*x)]|m[0x007+(9*x)]<<8|m[0x008+(9*x)]<<16
     except Exception as e:
-        pass
         print(f"error_measshort:{e} dict:{s} len:{lbb}")
     return s
 
@@ -404,7 +443,6 @@ def gpspos(bb,block_crc):
     pos = {}
     try:
         lbb = len(bb)
-        #if lbb != 23 and lbb != 40:print(f"gpspos: len:{lbb}")
         if lbb == 23 or lbb == 40: #23 new firmware 20701 len(38)40# datetime inside
             pos['gpspos_crc'] = block_crc
             if bb[0x000]|bb[0x001]<<8|bb[0x002]<<16|bb[0x003]<<24 == 0: return pos #empty
@@ -434,8 +472,6 @@ def gpspos(bb,block_crc):
                 pos['hour'] = bb[0x016]
                 pos['minute'] = bb[0x017]
                 pos['second'] = bb[0x018]
-                #pos['microsecond'] = bb[0x019]|bb[0x01a]<<8 #would be nice
-                #dt = datetime.datetime(pos['year'], pos['month'], pos['day'], pos['hour'], pos['minute'], pos['second'], pos['microsecond'])
                 dt = datetime.datetime(pos['year'], pos['month'], pos['day'], pos['hour'], pos['minute'], pos['second'])
                 pos['datetime'] = dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
             if lbb == 23:
@@ -446,7 +482,6 @@ def gpspos(bb,block_crc):
             pos['y'] = y
             pos['z'] = z
     except Exception as e:
-        pass
         print(f"error_gpspos:{e} dict:{pos} len:{lbb}")
     return pos
 
@@ -454,7 +489,6 @@ def gpsraw(r,block_crc):
     raw = {}
     try:
         lbb = len(r)
-        #if lbb != 91:print(f"gpsraw: len:{lbb}")
         if lbb == 91: #sometimes 32 42
             raw['gpsraw_crc'] = block_crc
             if r[0x000]|r[0x001]<<8|r[0x002]<<16|r[0x003]<<24 == 0: return raw #empty
@@ -474,7 +508,6 @@ def gpsinfo(i,block_crc):
     info = {}
     try:
         lbb=len(i)
-        #if lbb != 32:print(f"gpsinfo: len:{lbb}")
         if lbb == 32: #sometimes dontnow
             info['gpsinfo_crc'] = block_crc
             if i[0x000]|i[0x001]<<8|i[0x002]<<16|i[0x003]<<24 == 0: return info #empty
@@ -488,7 +521,6 @@ def gpsinfo(i,block_crc):
                 info['prn'][x] = i[0x006+(2*x)]
                 info['cno_mesQI'][x] = i[0x007+(2*x)]
     except Exception as e:
-        pass
         print(f"error_gpsinfo:{e} dict:{info} len:{lbb}")
     return info
 
@@ -562,6 +594,10 @@ def readraw(raw_file,crc_false_show = True,subframe_show = True,subframe32_show 
                                 if crc == crcstr:frame.update(gpsinfo(r[be+2:be+blocklen+2+2],block_crc))
                                 strc = '\033[0;91m' if crc!=crcstr else '\033[0;94m'
                                 if frame_fragments:print(f"{strc}gpsinfo:{gpsinfo(r[be+2:be+blocklen+2+2],block_crc)}{strce}")
+                            case  'auth': 
+                                if crc == crcstr:frame.update(auth(r[be+2:be+blocklen+2+2],block_crc))
+                                strc = '\033[0;91m' if crc!=crcstr else '\033[0;96m'
+                                if frame_fragments:print(f"{strc}auth:{auth(r[be+2:be+blocklen+2+2],block_crc)}{strce}")
                             case 'xdata':
                                 if auxc > 0:auxstr += '#'
                                 hca = ''
@@ -616,18 +652,18 @@ def readraw(raw_file,crc_false_show = True,subframe_show = True,subframe32_show 
         print(f"error__readraw: {e}")
 
 try:
-    #e.g. read all *.raw files in the log folder from radiosonde_auto_rx 
+    """e.g. read all *.raw files in the log folder from radiosonde_auto_rx"""
     #rawfileslist = [p for p in glob.glob('/home/user/radiosonde_auto_rx/auto_rx/log/*.raw', recursive = True) if os.path.isfile(p)]
     #for rawfile in rawfileslist:
         #readraw(raw_file = rawfile,crc_false_show = True,subframe_show = False,subframe32_show = False,json_show = False,frame_fragments = False,debug = False)
 
-    readraw(raw_file = 'log/V5230820_raw_frames_reset.log',crc_false_show = False,subframe_show = False,subframe32_show = False,json_show = False,frame_fragments = True,debug = False)
+    readraw(raw_file = 'log/V5230820_raw_frames_reset.log',crc_false_show = False,subframe_show = True,subframe32_show = False,json_show = False,frame_fragments = True,debug = False)
     readraw(raw_file = 'log/V1950381_raw_frames.log',crc_false_show = False,subframe_show = True,subframe32_show = False,json_show = False,frame_fragments = True,debug = False)
 
-    #read only the subframe in log folder from radiosonde_auto_rx 
+    """read only the subframe in log folder from radiosonde_auto_rx"""
     print(subframe('log/20241201-164916_V5250062_RS41-SGP_405100_subframe.bin', only_subframe_file = True))
 
-    #e.g. read all *_subframe.bin files in the log folder from radiosonde_auto_rx 
+    """e.g. read all *_subframe.bin files in the log folder from radiosonde_auto_rx"""
     #subframelist = [p for p in glob.glob('/home/user/radiosonde_auto_rx/auto_rx/log/*_subframe.bin', recursive = True) if os.path.isfile(p)]
     #for rawfile in subframelist:
         #print(subframe(rawfile, only_subframe_file = True))
