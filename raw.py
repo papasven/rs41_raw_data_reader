@@ -126,9 +126,9 @@ def crc_ccitt_16(data):
     return crc
 
 def flags(f):
-    r = '';
+    r = ''
     KnownBits = 0x0|0x1|0x2|0x3|0xc|0x8c
-    if(f&~KnownBits):r += (f"unknown 0x{f&~KnownBits:02x}|");
+    if(f&~KnownBits):r += (f"unknown 0x{f&~KnownBits:02x}|")
     if(f&0x1):r += f"Pressure Sensor 0x{0x1:02x}|"
     if(f&0x2):r += f"0x{0x2:02x}|"
     if(f&0x3):r += f"GPS 0x{0x3:02x}|"
@@ -154,29 +154,29 @@ def bit_flags(b):
     return ba
 
 def error_log(f):
-    r = '';
-    KnownBits = 0x000|0x001|0x002|0x003|0x004|0x005|0x006|0x007|0x008|0x009|0x00a|0x00b|0x00c|0x00d|0x00e|0x040|0x200
-    errorlist = {0x000:"Low battery capacity",
-               0x001:"No parameter setup",
-               0x002:"TX init failure",
-               0x003:"Not in TX state",
-               0x004:"No add-on sensor data",
-               0x005:"Various flash errors",
-               0x006:"PTU failure",
-               0x007:"GPS init failure",
-               0x008:"Invalid GPS messages",
-               0x009:"Missing GPS messages",
-               0x00a:"T self-check failure",
-               0x00b:"U self-check failure",
-               0x00c:"Low regen temperature",
-               0x00d:"P-module not detected",
-               0x00e:"T, Tu or U check failed",
-               0x040:"No sensor data?",
-               0x200:"GPS error?"}
-    if(f&~KnownBits):r += (f"unknown error 0x{f&~KnownBits:03x}|");
+    r = []
+    errorlist = {
+        0: "Low battery capacity",
+        1: "No parameter setup",
+        2: "TX init failure",
+        3: "Not in TX state",
+        4: "No add-on sensor data",
+        5: "Various flash errors",
+        6: "PTU failure",
+        7: "GPS init failure",
+        8: "Invalid GPS messages",
+        9: "Missing GPS messages",
+        10: "T self-check failure",
+        11: "U self-check failure",
+        12: "Low regen temperature",
+        13: "P-module not detected",
+        14: "T, Tu or U check failed",
+        15: "reserved15"
+    }
     for kB in errorlist:
-        if f&kB:r += f"{errorlist[kB]} 0x{kB:03x}|"
-    return r
+        if f & (1 << kB):
+            r.append(errorlist[kB])
+    return
 
 def t(gpsweek,timeOfWeek):
     second_before = 315964800 #unix epoch 01.01.1970 to gps epoch 06.01.1980
@@ -389,13 +389,7 @@ def status(x,block_crc):
             s['txPower'] = x[0x015]
             s['maxCalibIndex'] = x[0x016]
             s['thisCalibIndex'] = x[0x017]
-            calibFragment = x[0x018:0x018+16]
-            hcf=''
-            for h in calibFragment:
-                hcf += f"{h:02X}"
-            s['calibFragment'] = hcf
-            sff = f"0x{s['thisCalibIndex']:02X}:"
-            s['rs41_subfrm'] = sff + hcf
+            s['calibFragment'] = bytes(x[0x18:0x28]).hex().upper()#16
     except Exception as e:
         print(f"error_status:{e} dict:{s} len:{lbb}")
     return s
@@ -461,10 +455,10 @@ def gpspos(bb,block_crc):
             pos['vN']  = -xx*math.sin(phi)*math.cos(lam) - yy*math.sin(phi)*math.sin(lam) + zz*math.cos(phi)
             pos['vE'] = -xx*math.sin(lam) + yy*math.cos(lam)
             pos['vU']  =  xx*math.cos(phi)*math.cos(lam) + yy*math.cos(phi)*math.sin(lam) + zz*math.sin(phi)
-            pos['vel_h']  = math.sqrt(pos['vN']*pos['vN']+pos['vE']*pos['vE']);
-            pos['heading']  = math.atan2(pos['vE'], pos['vN']) * 180 / math.pi;
+            pos['vel_h']  = math.sqrt(pos['vN']*pos['vN']+pos['vE']*pos['vE'])
+            pos['heading']  = math.atan2(pos['vE'], pos['vN']) * 180 / math.pi
             if (pos['heading'] < 0): pos['heading'] += 360
-            pos['vel_v']  = pos['vU'];
+            pos['vel_v']  = pos['vU']
             if lbb == 40:
                 pos['year'] = bb[0x012]|bb[0x013]<<8
                 pos['month'] = bb[0x014]
