@@ -466,7 +466,7 @@ def gpspos(bb,block_crc):
                 pos['hour'] = bb[0x016]
                 pos['minute'] = bb[0x017]
                 pos['second'] = bb[0x018]
-                dt = datetime.datetime(pos['year'], pos['month'], pos['day'], pos['hour'], pos['minute'], pos['second'])
+                dt = datetime.datetime(pos['year'], pos['month'], pos['day'], pos['hour'], pos['minute'], pos['second'], 0, tzinfo=datetime.timezone.utc)#?
                 pos['datetime'] = dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
             if lbb == 23:
                 pos['sats'] = bb[0x012]
@@ -507,7 +507,7 @@ def gpsinfo(i,block_crc):
             if i[0x000]|i[0x001]<<8|i[0x002]<<16|i[0x003]<<24 == 0: return info #empty
             info['gpsWeek'] = i[0x000]|i[0x001]<<8
             info['timeOfWeek'] = i[0x002]|i[0x003]<<8|i[0x004]<<16|i[0x005]<<24
-            d = datetime.datetime.fromtimestamp(t(info['gpsWeek'],info['timeOfWeek']/1000))
+            d = datetime.datetime.fromtimestamp(t(info['gpsWeek'],info['timeOfWeek']/1000), tz=datetime.timezone.utc)
             info['datetime'] = d.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]+ "Z"
             info['prn'] = {}
             info['cno_mesQI'] = {}
