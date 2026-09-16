@@ -265,7 +265,7 @@ def subframe(d,only_subframe_file = False):
         for b in range(7):
             a['matrixU'][b] = []
             for c in range(6):
-                a['matrixU'][b].append(struct.unpack('<f', x[0x07D+(4*c)+(21*b):0x081+(4*c)+(21*b)])[0])
+                a['matrixU'][b].append(struct.unpack('<f', x[0x07D+(4*c)+(24*b):0x081+(4*c)+(24*b)])[0])
         a['taylorTU'] = []
         for c in range(3):a['taylorTU'].append(struct.unpack('<f', x[0x125+(4*c):0x129+(4*c)])[0])
         a['calTU']=struct.unpack('<f', x[0x131:0x135])[0]
@@ -409,7 +409,7 @@ def meas(m,block_crc):
                 s['ref1'][x] = m[0x003+(9*x)]|m[0x004+(9*x)]<<8|m[0x005+(9*x)]<<16
                 s['ref2'][x] = m[0x006+(9*x)]|m[0x007+(9*x)]<<8|m[0x008+(9*x)]<<16
             s['reserved024'] = m[0x024]|m[0x025]<<8
-            s['TemperaturePressureSensor']=(m[0x026]|m[0x027]<<8)/100
+            s['TemperaturePressureSensor']=struct.unpack('<h', m[0x026:0x028])[0]/100
             s['reserved028'] = m[0x028]|m[0x029]<<8
     except Exception as e:
         print(f"error_meas:{e} dict:{s} len:{lbb}")
